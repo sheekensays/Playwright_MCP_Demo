@@ -17,14 +17,9 @@ concurrency:
 
 jobs:
   test:
-    # Runs on your laptop via the self-hosted runner registered to this repo.
-    runs-on: self-hosted
+    # GitHub-hosted runner - safe for a public repo (isolated, ephemeral VM).
+    runs-on: ubuntu-latest
     timeout-minutes: 30
-    defaults:
-      run:
-        # The self-hosted Windows runner has no `pwsh` and a Restricted
-        # execution policy, which makes the default shell fail instantly.
-        shell: powershell -ExecutionPolicy Bypass -Command ". '{0}'"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,6 +28,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -41,7 +37,7 @@ jobs:
         run: npm run typecheck
 
       - name: Install Playwright browser
-        run: npx playwright install chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Run Playwright tests
         run: npm test

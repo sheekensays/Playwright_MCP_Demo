@@ -6,6 +6,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+defaults:
+  run:
+    # The self-hosted Windows runner has no `pwsh` and a Restricted execution
+    # policy, which makes the default shell fail instantly. Force Windows
+    # PowerShell with a per-process policy bypass.
+    shell: powershell -ExecutionPolicy Bypass -Command ". '{0}'"
+
 jobs:
   test:
     # Runs on your laptop via the self-hosted runner registered to this repo.

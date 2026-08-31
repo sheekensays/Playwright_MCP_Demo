@@ -3,22 +3,28 @@ name: Playwright Tests
 on:
   push:
     branches: [main]
-  pull_request:
   workflow_dispatch:
 
-defaults:
-  run:
-    # The self-hosted Windows runner has no `pwsh` and a Restricted execution
-    # policy, which makes the default shell fail instantly. Force Windows
-    # PowerShell with a per-process policy bypass.
-    shell: powershell -ExecutionPolicy Bypass -Command ". '{0}'"
+# Only read code by default; the deploy job opts into more below.
+permissions:
+  contents: read
+
+# Let a newer run supersede an in-flight Pages deploy, but never cancel one
+# midway (that can leave Pages in a broken state).
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   test:
     # Runs on your laptop via the self-hosted runner registered to this repo.
     runs-on: self-hosted
     timeout-minutes: 30
-
+    defaults:
+      run:
+        # The self-hosted Windows runner has no `pwsh` and a Restricted
+        # execution policy, which makes the default shell fail instantly.
+        shell: powershell -ExecutionPolicy Bypass -Command ". '{0}'"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,10 +46,37 @@ jobs:
       - name: Run Playwright tests
         run: npm test
 
-      - name: Upload HTML report
+      - name: Upload report artifact
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: playwright-report/
           retention-days: 14
+
+  deploy-report:
+    # Publish the report even when tests failed - that is when it is most useful.
+    needs: test
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download report artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: playwright-report
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
